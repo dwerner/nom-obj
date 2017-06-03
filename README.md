@@ -1,4 +1,6 @@
-# `nom-obj` [![Build Status](https://travis-ci.org/dwerner/nom-obj.svg?branch=master)](https://travis-ci.org/dwerner/nom-obj)
+# `nom-obj` 
+[![Build Status](https://travis-ci.org/dwerner/nom-obj.svg?branch=master)](https://travis-ci.org/dwerner/nom-obj)
+[![Crates.io Version](https://img.shields.io/crates/v/nom-obj.svg)](https://crates.io/crates/nom-obj)
 
 An obj/mtl (lightwave 3d model format) file format parser written with nom.
 
