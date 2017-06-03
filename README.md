@@ -1,4 +1,4 @@
-# `nom-obj`
+# `nom-obj` [![Build Status](https://travis-ci.org/dwerner/nom-obj.svg?branch=master)](https://travis-ci.org/dwerner/nom-obj)
 
 An obj/mtl file format parser written with nom.
 
