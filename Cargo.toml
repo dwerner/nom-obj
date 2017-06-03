@@ -2,7 +2,7 @@
 name = "nom-obj"
 version = "0.1.1"
 authors = ["dwerner <dan.werner@gmail.com>"]
-license = "BSD"
+license = "BSD-2-Clause"
 description = "A simple obj/mtl parser written with nom."
 
 [dependencies.nom]
