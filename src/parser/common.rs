@@ -1,6 +1,6 @@
 use nom::{
     digit,
-    eol
+    eol,
 };
 
 use std::str;
@@ -96,6 +96,7 @@ named!(pub float_pair< &[u8], (f32,f32) >,  sp!(tuple!(float, float)));
 
 #[cfg(test)]
 mod tests {
+		use nom::IResult;
     use super::*;
 
     #[test] fn can_parse_signed_floats() {

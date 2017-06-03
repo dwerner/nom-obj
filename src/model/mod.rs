@@ -223,9 +223,7 @@ mod tests {
         assert_eq!(interleaved.v_vt_vn.len(), 8);
 
         let ObjMaterial { diffuse_map } = obj.get_mtl();
-        // TODO : fix this to always use unix paths
-        assert_eq!(diffuse_map, "assets\\diffuse_map.png");
-        //TODO assert_eq!(diffuse_map, "assets/diffuse_map.png");
+        assert_eq!(diffuse_map, "assets/diffuse_map.png");
     }
 
     #[test] fn cube_obj_has_12_faces() { // Triangulated model, 12/2 = 6 quads
