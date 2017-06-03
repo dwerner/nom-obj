@@ -8,9 +8,12 @@ This crate was designed to parse an obj, and any referenced mtl files that it po
 
 
 ```
-let obj = Obj::create(filename);
+let obj = Obj::create("assets/cube.obj");
+
+// Multiple mesh objects are supported, stored in objects[] vec
 let Interleaved{ v_vt_vn, idx } = obj.objects[0].interleaved();
 
+// Copy interleaved vertex information
 let verts = v_vt_vn.iter()
 	.map(|&(v,vt,vn)| Vertex::create(v.0, v.1, v.2, vt.0, vt.1, vt.2, vn.0, vn.1, vn.0) )
 	.collect::<Vec<_>>();
@@ -36,3 +39,6 @@ Todo:
 - some usage examples are needed. For now it can be seen in [sg-engine](https://github.com/dwerner/sg-engine/blob/master/game_state/src/model.rs) 
 - Support multiple material per mtl file - multiple materials can be defined in an mtl file.
 - fix paths to assets (probably only works on unix currently)
+
+Notes:
+- obj and mtl parsers are implemented in terms of nom parser combinators, and while the learning curve was a bit high, I really enjoyed writing parsers this way. It's a very different experience from classical manual parsing. obj and mtl are plain text formats. Thanks Geal, nom is an excellent tool. Be sure to check out [nom](https://github.com/geal/nom) for your parsing needs in Rust.
