@@ -9,7 +9,7 @@ An obj/mtl (wavefront 3d model format) file format parser written with nom.
 This crate was designed to parse an obj, and any referenced mtl files that it points to. It doesn't try to implement the entire spec, but instead just relies on triangulated meshes. The purpose was to provide a model parser for [sg-engine](https://github.com/dwerner/sg-engine). Since the purpose was to generate a structure of data for the GPU to consume, I went with the opinionated stance of interleaved vertex data (vertex/texture/normal information). Both glutin and vulkano require implementing a trait on a vertex (either using a macro or manually), so we have to copy the vertex data into our desired format.
 
 
-```
+```rust
 let obj = Obj::create("assets/cube.obj");
 
 // Multiple mesh objects are supported, stored in objects[] vec
