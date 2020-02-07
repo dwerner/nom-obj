@@ -3,6 +3,7 @@ use parser::obj::{FaceIndex, ObjLine, ObjParser};
 use parser::mtl::{MtlLine, MtlParser};
 
 // use parser::mtl::{ MtlLine, MtlParser };
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
@@ -151,8 +152,6 @@ impl ObjObject {
     }
 
     pub fn interleaved(&self) -> Interleaved {
-        use std::collections::HashMap;
-
         let mut vertex_map = HashMap::new();
 
         let mut data = Interleaved {

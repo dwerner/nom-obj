@@ -10,7 +10,7 @@ This crate was designed to parse an obj, and any referenced mtl files that it po
 
 
 ```rust
-let obj = Obj::create("assets/cube.obj");
+let obj = Obj::read_file("assets/cube.obj")?;
 
 // Multiple mesh objects are supported, stored in objects[] vec
 let Interleaved{ v_vt_vn, idx } = obj.objects[0].interleaved();
@@ -27,20 +27,18 @@ let indices = idx.iter()
 	.collect::<Vec<_>>();
 
 use std::path::Path;
-let path_str = obj.get_mtl().diffuse_map.clone();
-let material_path = Path::new(&path_str);
+let material_path = obj.material.diffuse_map.clone();
 let diffuse_map = image::open(material_path).expect("unable to open image file from material");
 
 ```
 
-Current limitations:
-- only supports a single diffuse texture, (though most of the wiring is in place to support others)
-- file paths for materials need som  attention in Windows.
-
 Todo:
+- upgrade nom to 5.1+
+- update code to rust 2018
 - some usage examples are needed. For now it can be seen in [sg-engine](https://github.com/dwerner/sg-engine/blob/master/game_state/src/model.rs) 
-- Support multiple material per mtl file - multiple materials can be defined in an mtl file.
 - fix paths to assets (probably only works on unix currently)
+- file paths for materials need some attention in Windows.
+- Support multiple materials per mtl file - multiple materials can be defined in an mtl file.
 
 Notes:
 - obj and mtl parsers are implemented in terms of nom parser combinators, and while the learning curve was a bit high, I really enjoyed writing parsers this way. It's a very different experience from classical manual parsing. obj and mtl are plain text formats. Thanks Geal, nom is an excellent tool. Be sure to check out [nom](https://github.com/geal/nom) for your parsing needs in Rust.
