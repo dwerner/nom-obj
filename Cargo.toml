@@ -4,6 +4,8 @@ version = "0.2.0"
 authors = ["dwerner <dan.werner@gmail.com>"]
 license = "BSD-2-Clause"
 description = "A simple obj/mtl parser written with nom."
+repository = "https://github.com/dwerner/nom-obj"
+homepage = "https://github.com/dwerner/nom-obj"
 
 [dependencies.nom]
 version = "2"
