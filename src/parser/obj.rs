@@ -4,6 +4,8 @@ use parser::common::*;
 
 use std::str;
 
+use std::io::BufRead;
+
 #[derive(PartialEq, Debug)]
 pub struct FaceIndex(pub u32, pub Option<u32>, pub Option<u32>);
 
@@ -84,71 +86,67 @@ named!( face_line< &[u8], ObjLine >, delimited!(
     )
 );
 
-named!(comment_line< ObjLine >, map!(
-    sp!(comment),
-    |s| ObjLine::Comment(str::from_utf8(s).unwrap().trim().to_string())
-));
+named!(
+    comment_line<ObjLine>,
+    map!(sp!(comment), |s| ObjLine::Comment(
+        str::from_utf8(s).unwrap().trim().to_string()
+    ))
+);
 
-named!(parse_obj_line< ObjLine >, alt!(
-    vertex_line
-    | normal_line
-    | vertex_param_line
-    | texcoord_line
-    | face_line
-    | object_line
-    | group_line
-    | mtllib_line
-    | usemtl_line
-    | s_line
-    | comment_line
-));
+named!(
+    parse_obj_line<ObjLine>,
+    alt!(
+        vertex_line
+            | normal_line
+            | vertex_param_line
+            | texcoord_line
+            | face_line
+            | object_line
+            | group_line
+            | mtllib_line
+            | usemtl_line
+            | s_line
+            | comment_line
+    )
+);
 
-
-use std::fs::File;
-use std::io::BufReader;
-pub struct ObjParser {
-    filename: String,
-    reader: BufReader<File>,
+pub struct ObjParser<R> {
+    reader: R,
 }
 
-impl ObjParser {
-    pub fn create(filename: &str) -> Self {
-        let reader = BufReader::new(File::open(filename).expect("Unable to open file"));
-        ObjParser{
-            filename: filename.to_string(),
-            reader: reader,
-        }
-    }
-
-    pub fn get_filename(&self) -> &str {
-        &self.filename
+impl<R> ObjParser<R>
+where
+    R: BufRead,
+{
+    pub fn new(reader: R) -> Self {
+        ObjParser { reader }
     }
 }
 
-impl Iterator for ObjParser {
+impl<R> Iterator for ObjParser<R>
+where
+    R: BufRead,
+{
     type Item = ObjLine;
 
     fn next(&mut self) -> Option<Self::Item> {
         use nom::IResult;
-        use std::io::BufRead;
         let mut line = String::new();
         let read_result = self.reader.read_line(&mut line);
         match read_result {
-            Ok(len) => if len > 0 {
-                let result = parse_obj_line(line.as_bytes());
-                match result {
-                    IResult::Done(_, o) => { Some(o) },
-                    IResult::Error(_e) => { None },
-                    IResult::Incomplete(_) => {
-                        self.next()
-                    },
+            Ok(len) => {
+                if len > 0 {
+                    let result = parse_obj_line(line.as_bytes());
+                    match result {
+                        IResult::Done(_, o) => Some(o),
+                        IResult::Error(_e) => None,
+                        IResult::Incomplete(_) => self.next(),
+                    }
+                } else {
+                    None
                 }
-            } else {
-                None
-            },
-            Err(_o) => {
-                None
             }
+            Err(_o) => None,
         }
     }
 }
@@ -157,17 +155,25 @@ impl Iterator for ObjParser {
 mod tests {
 
     use super::*;
+    use std::fs::File;
+    use std::io::BufReader;
 
-    #[test] fn parser_can_read_from_file() {
-        let parser = ObjParser::create("assets/cube.obj");
+    #[test]
+    fn parser_can_read_from_file() -> Result<(), Box<dyn std::error::Error>> {
+        let file = File::open("assets/cube.obj")?;
+        let parser = ObjParser::new(BufReader::new(file));
         let parsed_lines = parser.collect::<Vec<_>>();
         assert_eq!(parsed_lines.len(), 51);
+        Ok(())
     }
 
-    #[test] fn can_parse_any_line() {
-        let result = parse_obj_line("f 1/11/4 1/3/4 1/11/4  #this is an important face \n".as_bytes());
+    #[test]
+    fn can_parse_any_line() {
+        let result =
+            parse_obj_line("f 1/11/4 1/3/4 1/11/4  #this is an important face \n".as_bytes());
         let (_, line) = result.unwrap();
-        assert_eq!(line,
+        assert_eq!(
+            line,
             ObjLine::Face(
                 FaceIndex(1, Some(11), Some(4)),
                 FaceIndex(1, Some(3), Some(4)),
@@ -176,10 +182,12 @@ mod tests {
         );
     }
 
-    #[test] fn can_ignore_comment_at_eol() {
+    #[test]
+    fn can_ignore_comment_at_eol() {
         let ff = face_line("f 1/11/4 1/3/4 1/11/4  #this is an important face \n".as_bytes());
-        let (_,b) = ff.unwrap();
-        assert_eq!(b,
+        let (_, b) = ff.unwrap();
+        assert_eq!(
+            b,
             ObjLine::Face(
                 FaceIndex(1, Some(11), Some(4)),
                 FaceIndex(1, Some(3), Some(4)),
@@ -188,98 +196,112 @@ mod tests {
         );
     }
 
-
-    #[test] fn can_parse_face_triple() {
-        named!(sp_face< FaceIndex >, sp!(face_triple));
+    #[test]
+    fn can_parse_face_triple() {
+        named!(sp_face<FaceIndex>, sp!(face_triple));
         let ff = face_triple("1/11/4".as_bytes());
-        let (_,b) = ff.unwrap();
-        assert_eq!(b, FaceIndex(1, Some(11), Some(4)) );
+        let (_, b) = ff.unwrap();
+        assert_eq!(b, FaceIndex(1, Some(11), Some(4)));
     }
 
-    #[test] fn can_parse_face_line_1() {
+    #[test]
+    fn can_parse_face_line_1() {
         let ff = face_line("f 1/11/4 1/3/4 1/11/4  \n".as_bytes());
-        let (_,b) = ff.unwrap();
-        assert_eq!(b,
-        ObjLine::Face(
-            FaceIndex(1, Some(11), Some(4)),
-            FaceIndex(1, Some(3), Some(4)),
-            FaceIndex(1, Some(11), Some(4))
-        )
+        let (_, b) = ff.unwrap();
+        assert_eq!(
+            b,
+            ObjLine::Face(
+                FaceIndex(1, Some(11), Some(4)),
+                FaceIndex(1, Some(3), Some(4)),
+                FaceIndex(1, Some(11), Some(4))
+            )
         );
     }
 
-    #[test] fn can_parse_face_line_2() {
+    #[test]
+    fn can_parse_face_line_2() {
         //
         let ff = face_line("f 1/3 2/62 4/3\n".as_bytes());
-        let (_,b) = ff.unwrap();
-        assert_eq!(b,
-        ObjLine::Face(
-            FaceIndex(1, Some(3), None),
-            FaceIndex(2, Some(62), None),
-            FaceIndex(4, Some(3), None),
-        )
+        let (_, b) = ff.unwrap();
+        assert_eq!(
+            b,
+            ObjLine::Face(
+                FaceIndex(1, Some(3), None),
+                FaceIndex(2, Some(62), None),
+                FaceIndex(4, Some(3), None),
+            )
         );
     }
 
-    #[test] fn can_parse_face_line_3() {
+    #[test]
+    fn can_parse_face_line_3() {
         let ff = face_line("f 1//4 1//4 1//11  \n".as_bytes());
-        let (_,b) = ff.unwrap();
-        assert_eq!(b,
-        ObjLine::Face(
-            FaceIndex(1, None, Some(4)),
-            FaceIndex(1, None, Some(4)),
-            FaceIndex(1, None, Some(11))
-        )
+        let (_, b) = ff.unwrap();
+        assert_eq!(
+            b,
+            ObjLine::Face(
+                FaceIndex(1, None, Some(4)),
+                FaceIndex(1, None, Some(4)),
+                FaceIndex(1, None, Some(11))
+            )
         );
     }
 
-    #[test] fn can_parse_face_line_4() {
+    #[test]
+    fn can_parse_face_line_4() {
         let ff = face_line("f 42 1 11  \n".as_bytes());
-        let (_,b) = ff.unwrap();
-        assert_eq!(b,
-        ObjLine::Face(
-            FaceIndex(42, None, None),
-            FaceIndex(1, None, None),
-            FaceIndex(11, None, None)
-        )
+        let (_, b) = ff.unwrap();
+        assert_eq!(
+            b,
+            ObjLine::Face(
+                FaceIndex(42, None, None),
+                FaceIndex(1, None, None),
+                FaceIndex(11, None, None)
+            )
         );
     }
 
-    #[test] fn can_parse_face_line_5() {
+    #[test]
+    fn can_parse_face_line_5() {
         let ff = face_line("f 42/ 1/ 11/  \n".as_bytes());
-        let (_,b) = ff.unwrap();
-        assert_eq!(b,
-        ObjLine::Face(
-            FaceIndex(42, None, None),
-            FaceIndex(1, None, None),
-            FaceIndex(11, None, None)
-        )
+        let (_, b) = ff.unwrap();
+        assert_eq!(
+            b,
+            ObjLine::Face(
+                FaceIndex(42, None, None),
+                FaceIndex(1, None, None),
+                FaceIndex(11, None, None)
+            )
         );
     }
 
-    #[test] fn can_parse_face_line_6() {
+    #[test]
+    fn can_parse_face_line_6() {
         let ff = face_line("f 42// 1// 11// \t \n".as_bytes());
-        let (_,b) = ff.unwrap();
-        assert_eq!(b,
-        ObjLine::Face(
-            FaceIndex(42, None, None),
-            FaceIndex(1, None, None),
-            FaceIndex(11, None, None)
-        )
+        let (_, b) = ff.unwrap();
+        assert_eq!(
+            b,
+            ObjLine::Face(
+                FaceIndex(42, None, None),
+                FaceIndex(1, None, None),
+                FaceIndex(11, None, None)
+            )
         );
     }
 
-    #[test] fn can_parse_texcoord_line() {
+    #[test]
+    fn can_parse_texcoord_line() {
         let vline = "vt -1.000000 -1.000000 \r\n".as_bytes();
         let v = texcoord_line(vline);
-        let (_a,b) = v.unwrap();
+        let (_a, b) = v.unwrap();
         assert_eq!(b, ObjLine::TextureUVW(-1.0, -1.0, None));
     }
 
-    #[test] fn can_parse_normal_line() {
+    #[test]
+    fn can_parse_normal_line() {
         let vline = "vn -1.000000 -1.000000 1.000000  \r\n".as_bytes();
         let v = normal_line(vline);
-        let (_,b) = v.unwrap();
+        let (_, b) = v.unwrap();
         assert_eq!(b, ObjLine::Normal(-1.0, -1.0, 1.0));
     }
 
@@ -288,7 +310,7 @@ mod tests {
     fn invalid_vertex_line_fails() {
         let vline = "vZZ -1.000000 -1.000000 1.000000 \r\n".as_bytes();
         let v = vertex_line(vline);
-        let (_,b) = v.unwrap();
+        let (_, b) = v.unwrap();
         assert_eq!(b, ObjLine::Vertex(-1.0, -1.0, 1.0, None));
     }
 
@@ -296,7 +318,7 @@ mod tests {
     fn can_parse_vertex_parameter_line() {
         let vline = "vp -1.000000 -1.000000 1.000000 \r\n".as_bytes();
         let v = vertex_param_line(vline);
-        let (_,b) = v.unwrap();
+        let (_, b) = v.unwrap();
         assert_eq!(b, ObjLine::VertexParam(-1.0, -1.0, 1.0));
     }
 
@@ -304,7 +326,7 @@ mod tests {
     fn can_parse_vertex_line_with_optional_w_value() {
         let vline = "v -1.000000 -1.000000 1.000000 42.000\r\n".as_bytes();
         let v = vertex_line(vline);
-        let (_,b) = v.unwrap();
+        let (_, b) = v.unwrap();
         assert_eq!(b, ObjLine::Vertex(-1.0, -1.0, 1.0, Some(42.0)));
     }
 
@@ -312,31 +334,35 @@ mod tests {
     fn can_parse_vertex_line() {
         let vline = "v -1.000000 -1.000000 1.000000 \r\n".as_bytes();
         let v = vertex_line(vline);
-        let (_,b) = v.unwrap();
+        let (_, b) = v.unwrap();
         assert_eq!(b, ObjLine::Vertex(-1.0, -1.0, 1.0, None));
     }
 
-    #[test] fn can_parse_object_line() {
+    #[test]
+    fn can_parse_object_line() {
         let cmt = object_line("o someobject.999asdf.7 \n".as_bytes());
-        let (_,b) = cmt.unwrap();
+        let (_, b) = cmt.unwrap();
         assert_eq!(b, ObjLine::ObjectName("someobject.999asdf.7".to_string()));
     }
 
-    #[test] fn can_parse_mtllib_line() {
+    #[test]
+    fn can_parse_mtllib_line() {
         let cmt = mtllib_line("mtllib somelib \n".as_bytes());
-        let (_,b) = cmt.unwrap();
+        let (_, b) = cmt.unwrap();
         assert_eq!(b, ObjLine::MtlLib("somelib".to_string()));
     }
 
-    #[test] fn can_parse_usemtl_line() {
+    #[test]
+    fn can_parse_usemtl_line() {
         let cmt = usemtl_line("usemtl SomeMaterial\n".as_bytes());
-        let (_,b) = cmt.unwrap();
+        let (_, b) = cmt.unwrap();
         assert_eq!(b, ObjLine::UseMtl("SomeMaterial".to_string()));
     }
 
-    #[test] fn can_parse_s_line() {
+    #[test]
+    fn can_parse_s_line() {
         let cmt = s_line("s off\n".as_bytes());
-        let (_,b) = cmt.unwrap();
+        let (_, b) = cmt.unwrap();
         assert_eq!(b, ObjLine::SmoothShading("off".to_string()));
     }
 
@@ -393,5 +419,4 @@ f 6/10/4 2/18/4 1/3/4
 f 7/13/5 5/8/5 1/3/5
 f 4/4/6 2/18/6 6/19/6
 ";
-
 }
