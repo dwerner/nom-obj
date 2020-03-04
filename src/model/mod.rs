@@ -2,12 +2,14 @@ use parser::obj::{FaceIndex, ObjLine, ObjParser};
 
 use parser::mtl::{MtlLine, MtlParser};
 
-// use parser::mtl::{ MtlLine, MtlParser };
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+
+type T3<T> = (T, T, T);
+type T4<T> = (T, T, T, T);
 
 pub struct Obj {
     pub comments: Vec<String>,
@@ -37,7 +39,7 @@ impl Obj {
                         let mtl_path = Path::join(parent, name);
                         let file = File::open(mtl_path)?;
                         let reader = BufReader::new(file);
-                        let mut mtl_parser = MtlParser::new(reader);
+                        let mtl_parser = MtlParser::new(reader);
                         for line in mtl_parser {
                             if let MtlLine::DiffuseMap(diffuse_map) = line {
                                 let path = Path::join(parent, diffuse_map);
@@ -64,7 +66,7 @@ impl Obj {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ObjObject {
     pub name: Option<String>,
     pub material: Option<ObjMaterial>,
@@ -82,15 +84,7 @@ pub struct ObjMaterial {
 
 impl ObjObject {
     pub fn new() -> Self {
-        ObjObject {
-            name: None,
-            material: None,
-            vertices: Vec::new(),
-            normals: Vec::new(),
-            texture_coords: Vec::new(),
-            vertex_params: Vec::new(),
-            faces: Vec::new(),
-        }
+        Default::default()
     }
     pub fn vertices(&self) -> &Vec<ObjLine> {
         &self.vertices
@@ -107,8 +101,8 @@ impl ObjObject {
 
     #[inline]
     fn get_v_tuple(&self, face_index: &FaceIndex) -> (f32, f32, f32, f32) {
-        let &FaceIndex(v, _, _) = face_index;
-        match self.vertices[(v as usize) - 1] {
+        let &FaceIndex(ix, _, _) = face_index;
+        match self.vertices[(ix as usize) - 1] {
             ObjLine::Vertex(x, y, z, w) => (x, y, z, w.unwrap_or(1.0)),
             _ => panic!("not a vertex"),
         }
@@ -117,34 +111,31 @@ impl ObjObject {
     #[inline]
     fn get_vt_tuple(&self, face_index: &FaceIndex) -> (f32, f32, f32) {
         let &FaceIndex(_, vt, _) = face_index;
-        if vt.is_none() {
-            (0.0, 0.0, 0.0)
-        } else {
-            match self.texture_coords[(vt.unwrap() as usize) - 1] {
+        if let Some(vt) = vt {
+            match self.texture_coords[(vt as usize) - 1] {
                 ObjLine::TextureUVW(u, v, w) => (u, v, w.unwrap_or(0.0)),
                 _ => panic!("not a vertex"),
             }
+        } else {
+            (0.0, 0.0, 0.0)
         }
     }
 
     #[inline]
     fn get_vn_tuple(&self, face_index: &FaceIndex) -> (f32, f32, f32) {
         let &FaceIndex(_, _, vn) = face_index;
-        if vn.is_none() {
-            (0.0, 0.0, 0.0)
-        } else {
-            match self.normals[(vn.unwrap() as usize) - 1] {
+        if let Some(vn) = vn {
+            match self.normals[(vn as usize) - 1] {
                 ObjLine::Normal(x, y, z) => (x, y, z),
                 _ => panic!("not a vertex"),
             }
+        } else {
+            (0.0, 0.0, 0.0)
         }
     }
 
     #[inline]
-    fn interleave_tuples(
-        &self,
-        id: &FaceIndex,
-    ) -> ((f32, f32, f32, f32), (f32, f32, f32), (f32, f32, f32)) {
+    fn interleave_tuples(&self, id: &FaceIndex) -> (T4<f32>, T3<f32>, T3<f32>) {
         let vert = self.get_v_tuple(id);
         let text = self.get_vt_tuple(id);
         let norm = self.get_vn_tuple(id);
@@ -191,7 +182,7 @@ impl ObjObject {
 }
 
 pub struct Interleaved {
-    pub v_vt_vn: Vec<((f32, f32, f32, f32), (f32, f32, f32), (f32, f32, f32))>,
+    pub v_vt_vn: Vec<(T4<f32>, T3<f32>, T3<f32>)>,
     pub idx: Vec<usize>,
 }
 
