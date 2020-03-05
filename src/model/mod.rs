@@ -18,7 +18,18 @@ pub struct Obj {
 impl Obj {
     pub fn read_file(filename: &str) -> Result<Self, Box<dyn Error>> {
         let file = File::open(filename)?;
-        let parser = ObjParser::new(BufReader::new(file));
+        let reader = BufReader::new(file);
+        Self::from_reader(reader, Some(filename))
+    }
+
+    pub fn from_reader<T>(
+        reader: BufReader<T>,
+        mtl_search_path: Option<&str>,
+    ) -> Result<Self, Box<dyn Error>>
+    where
+        T: std::io::Read,
+    {
+        let parser = ObjParser::new(reader);
 
         let mut comments = Vec::new();
         let mut objects = Vec::new();
@@ -35,18 +46,20 @@ impl Obj {
                     object.name = Some(name);
                 }
                 ObjLine::MtlLib(name) => {
-                    if let Some(parent) = Path::new(filename).parent() {
-                        let mtl_path = Path::join(parent, name);
-                        let file = File::open(mtl_path)?;
-                        let reader = BufReader::new(file);
-                        let mtl_parser = MtlParser::new(reader);
-                        for line in mtl_parser {
-                            if let MtlLine::DiffuseMap(diffuse_map) = line {
-                                let path = Path::join(parent, diffuse_map);
-                                if let Some(diffuse) = path.to_owned().to_str() {
-                                    let diffuse_map = diffuse.to_string();
-                                    object.material = Some(ObjMaterial { diffuse_map });
-                                    continue;
+                    if let Some(mtl_search_path) = mtl_search_path {
+                        if let Some(parent) = Path::new(mtl_search_path).parent() {
+                            let mtl_path = Path::join(parent, name);
+                            let file = File::open(mtl_path)?;
+                            let reader = BufReader::new(file);
+                            let mtl_parser = MtlParser::new(reader);
+                            for line in mtl_parser {
+                                if let MtlLine::DiffuseMap(diffuse_map) = line {
+                                    let path = Path::join(parent, diffuse_map);
+                                    if let Some(diffuse) = path.to_owned().to_str() {
+                                        let diffuse_map = diffuse.to_string();
+                                        object.material = Some(ObjMaterial { diffuse_map });
+                                        continue;
+                                    }
                                 }
                             }
                         }
@@ -202,6 +215,40 @@ mod tests {
         assert!(o.objects[0].material.is_some());
         let ObjMaterial { diffuse_map } = o.objects[0].material.as_ref().unwrap();
         assert_eq!(diffuse_map, "assets/diffuse_map.png");
+        Ok(())
+    }
+
+    #[test]
+    fn negative_texcoord_plane_regression() -> Result<(), Box<dyn Error>> {
+        use std::io::Cursor;
+        let plane_lines = "mtllib untitled.mtl
+o Plane
+v -1.000000 0.000000 1.000000
+v 1.000000 0.000000 1.000000
+v -1.000000 0.000000 -1.000000
+v 1.000000 0.000000 -1.000000
+vt 1.000000 0.000000
+vt 0.000000 1.000000
+vt 0.000000 0.000000
+vt 1.000000 1.000000
+vn 0.0000 1.0000 0.0000
+# usemtl None
+s off
+f 2/1/1 3/2/1 1/3/1
+f 2/1/1 4/4/1 3/2/1";
+
+        let cursor = Cursor::new(plane_lines);
+        let o = Obj::from_reader(BufReader::new(cursor), None)?;
+        let interleaved = o.objects[0].interleaved();
+
+        assert_eq!(o.objects[0].faces.len(), 2);
+        assert_eq!(interleaved.v_vt_vn.len(), 4);
+
+        for (v, vt, vn) in interleaved.v_vt_vn {
+            assert!(vt.0 >= 0.0);
+            assert!(vt.1 >= 0.0);
+        }
+
         Ok(())
     }
 

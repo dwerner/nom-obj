@@ -155,11 +155,12 @@ where
 mod tests {
 
     use super::*;
+    use std::error::Error;
     use std::fs::File;
     use std::io::BufReader;
 
     #[test]
-    fn parser_can_read_from_file() -> Result<(), Box<dyn std::error::Error>> {
+    fn parser_can_read_from_file() -> Result<(), Box<dyn Error>> {
         let file = File::open("assets/cube.obj")?;
         let parser = ObjParser::new(BufReader::new(file));
         let parsed_lines = parser.collect::<Vec<_>>();
